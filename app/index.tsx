@@ -10,12 +10,12 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { obtenerJson } from "../src/api/cliente";
 import type { Hospedaje } from "../src/tipos";
 import { colores, radios, sombra, tipografia } from "../src/tema";
 import { cerrarSesion, obtenerToken } from "../src/sesion";
-import { useFocusEffect } from "expo-router";
+import { geohash } from "../src/geohash";
 
 const FRANJAS = [
   { id: "H4", etiqueta: "4 h" },
@@ -24,6 +24,13 @@ const FRANJAS = [
   { id: "H12", etiqueta: "12 h" },
   { id: "NOCHE_COMPLETA", etiqueta: "Noche" },
 ];
+
+const ORDENES = [
+  { id: "precio", etiqueta: "Más barato" },
+  { id: "distancia", etiqueta: "Más cerca" },
+] as const;
+
+type Orden = (typeof ORDENES)[number]["id"];
 
 function FlechaAnimada() {
   const desplazamiento = useRef(new Animated.Value(0)).current;
@@ -60,22 +67,28 @@ function FlechaAnimada() {
 
 export default function Mapa() {
   const [franja, setFranja] = useState("H4");
+  const [orden, setOrden] = useState<Orden>("precio");
   const [hospedajes, setHospedajes] = useState<Hospedaje[] | null>(null);
   const [seleccionado, setSeleccionado] = useState<Hospedaje | null>(null);
   const [error, setError] = useState<string | null>(null);
-
   const [conSesion, setConSesion] = useState(false);
+  const [demanda, setDemanda] = useState<string | null>(null);
 
+  // Ordena sin volver a consultar la API.
+  const ordenados = hospedajes
+    ? [...hospedajes].sort((a, b) =>
+        orden === "precio"
+          ? a.precioDesde - b.precioDesde
+          : a.distanciaMetros - b.distanciaMetros,
+      )
+    : null;
+
+  // Revisa la sesión cada vez que el mapa vuelve a estar en pantalla.
   useFocusEffect(
     useCallback(() => {
       obtenerToken().then((t) => setConSesion(!!t));
     }, []),
   );
-
-  async function salir() {
-    await cerrarSesion();
-    setConSesion(false);
-  }
 
   useEffect(() => {
     setHospedajes(null);
@@ -88,6 +101,19 @@ export default function Mapa() {
       .catch((e: Error) => setError(e.message));
   }, [franja]);
 
+  useEffect(() => {
+    obtenerJson<{ nivel: string }>(
+      `/api/v1/concurrencia?geohash=${geohash(-12.091, -77.032)}`,
+    )
+      .then((r) => setDemanda(r.nivel))
+      .catch(() => setDemanda(null));
+  }, [franja]);
+
+  async function salir() {
+    await cerrarSesion();
+    setConSesion(false);
+  }
+
   return (
     <View style={styles.contenedor}>
       <MapView
@@ -99,7 +125,7 @@ export default function Mapa() {
           longitudeDelta: 0.03,
         }}
       >
-        {hospedajes?.map((h) => {
+        {ordenados?.map((h) => {
           const activo = seleccionado?.id === h.id;
           return (
             <Marker
@@ -155,7 +181,36 @@ export default function Mapa() {
             );
           })}
         </ScrollView>
+
+        <View style={styles.ordenFila}>
+          {ORDENES.map((o) => {
+            const activo = orden === o.id;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => setOrden(o.id)}
+                style={[styles.orden, activo && styles.ordenActivo]}
+              >
+                <Text
+                  style={[styles.ordenTexto, activo && styles.ordenTextoActivo]}
+                >
+                  {o.etiqueta}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {demanda === "ALTA" && (
+          <View style={styles.avisoDemanda}>
+            <Text style={styles.avisoDemandaTexto}>
+              Alta demanda en este horario. Es posible que algunos lugares estén
+              ocupados.
+            </Text>
+          </View>
+        )}
       </View>
+
       <Pressable
         onPress={
           conSesion
@@ -165,9 +220,15 @@ export default function Mapa() {
         style={styles.botonSesion}
       >
         <Text style={styles.botonSesionTexto}>
-          {conSesion ? "Salir" : "Entrar"}
+          {conSesion ? "Cuenta" : "Entrar"}
         </Text>
       </Pressable>
+
+      {conSesion && (
+        <Pressable onPress={salir} style={styles.botonSalir}>
+          <Text style={styles.botonSalirTexto}>Salir</Text>
+        </Pressable>
+      )}
 
       {!hospedajes && !error && (
         <View style={styles.cargando}>
@@ -189,20 +250,12 @@ export default function Mapa() {
             <Text style={styles.tarjetaNombre} numberOfLines={1}>
               {seleccionado.nombre}
             </Text>
-            <Pressable onPress={() => setSeleccionado(null)} hitSlop={10}>
-              <Text
-                style={{
-                  color: colores.textoSuave,
-                  fontSize: 18,
-                  marginLeft: 12,
-                }}
-              >
-                ✕
-              </Text>
-            </Pressable>
             <Text style={styles.tarjetaPrecio}>
               S/ {seleccionado.precioDesde.toFixed(2)}
             </Text>
+            <Pressable onPress={() => setSeleccionado(null)} hitSlop={10}>
+              <Text style={styles.cerrarTarjeta}>✕</Text>
+            </Pressable>
           </View>
 
           <View style={styles.etiquetas}>
@@ -271,6 +324,65 @@ const styles = StyleSheet.create({
   },
   chipTextoActivo: { color: colores.textoSobreAcento },
 
+  ordenFila: { flexDirection: "row", gap: 8, marginTop: 10 },
+  orden: {
+    backgroundColor: colores.superficie,
+    borderRadius: radios.pildora,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colores.borde,
+  },
+  ordenActivo: { backgroundColor: colores.acento, borderColor: colores.acento },
+  ordenTexto: {
+    fontFamily: tipografia.cuerpoMedio,
+    fontSize: 12,
+    color: colores.texto,
+  },
+  ordenTextoActivo: { color: colores.textoSobreAcento },
+
+  avisoDemanda: {
+    backgroundColor: colores.acentoSuave,
+    borderRadius: radios.boton,
+    padding: 10,
+    marginTop: 10,
+  },
+  avisoDemandaTexto: {
+    fontFamily: tipografia.cuerpoMedio,
+    fontSize: 12,
+    color: colores.acento,
+  },
+
+  botonSesion: {
+    position: "absolute",
+    top: 60,
+    right: 16,
+    marginTop: 110,
+    backgroundColor: colores.superficie,
+    borderRadius: radios.pildora,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colores.borde,
+    ...sombra,
+  },
+  botonSesionTexto: {
+    fontFamily: tipografia.enfasis,
+    color: colores.marca,
+    fontSize: 13,
+  },
+  botonSalir: {
+    position: "absolute",
+    top: 60,
+    right: 16,
+    marginTop: 150,
+  },
+  botonSalirTexto: {
+    fontFamily: tipografia.cuerpo,
+    color: colores.textoSuave,
+    fontSize: 12,
+  },
+
   marcadorContenedor: { alignItems: "center" },
   marcador: {
     backgroundColor: colores.superficie,
@@ -304,10 +416,10 @@ const styles = StyleSheet.create({
     borderTopColor: colores.acento,
   },
 
-  cargando: { position: "absolute", top: 130, alignSelf: "center" },
+  cargando: { position: "absolute", top: 230, alignSelf: "center" },
   aviso: {
     position: "absolute",
-    top: 130,
+    top: 230,
     left: 16,
     right: 16,
     backgroundColor: colores.superficie,
@@ -347,7 +459,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colores.acento,
     fontFamily: tipografia.titulo,
+    marginRight: 12,
   },
+  cerrarTarjeta: { color: colores.textoSuave, fontSize: 18 },
   etiquetas: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   etiqueta: {
     backgroundColor: colores.marcaSuave,
@@ -382,22 +496,5 @@ const styles = StyleSheet.create({
     color: colores.marca,
     fontSize: 14,
     fontFamily: tipografia.enfasis,
-  },
-  botonSesion: {
-    position: "absolute",
-    top: 110,
-    right: 16,
-    backgroundColor: colores.superficie,
-    borderRadius: radios.pildora,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colores.borde,
-    ...sombra,
-  },
-  botonSesionTexto: {
-    fontFamily: tipografia.enfasis,
-    color: colores.marca,
-    fontSize: 13,
   },
 });
