@@ -101,3 +101,7 @@ export function enviarJson<T>(
 ): Promise<T> {
   return peticion<T>("POST", ruta, cuerpo, autenticada);
 }
+
+export function obtenerJsonAutenticado<T>(ruta: string): Promise<T> {
+  return peticion<T>("GET", ruta, undefined, true);
+}

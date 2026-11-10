@@ -68,6 +68,7 @@ export default function Layout() {
         name="visitar/[id]"
         options={{ title: "Registrar visita", presentation: "modal" }}
       />
+      <Stack.Screen name="perfil" options={{ title: "Tu cuenta" }} />
     </Stack>
   );
 }

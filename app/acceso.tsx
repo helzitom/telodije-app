@@ -55,8 +55,9 @@ export default function Acceso() {
         password,
       });
       await guardarSesion(sesion.accessToken, sesion.refreshToken);
-      router.back();
+      router.dismissTo("/");
     } catch (e) {
+      console.log("Error de login:", e);
       setMensaje(
         e instanceof ErrorApi
           ? e.message

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -15,6 +15,7 @@ import { obtenerJson } from "../src/api/cliente";
 import type { Hospedaje } from "../src/tipos";
 import { colores, radios, sombra, tipografia } from "../src/tema";
 import { cerrarSesion, obtenerToken } from "../src/sesion";
+import { useFocusEffect } from "expo-router";
 
 const FRANJAS = [
   { id: "H4", etiqueta: "4 h" },
@@ -65,9 +66,11 @@ export default function Mapa() {
 
   const [conSesion, setConSesion] = useState(false);
 
-  useEffect(() => {
-    obtenerToken().then((t) => setConSesion(!!t));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      obtenerToken().then((t) => setConSesion(!!t));
+    }, []),
+  );
 
   async function salir() {
     await cerrarSesion();
@@ -154,7 +157,11 @@ export default function Mapa() {
         </ScrollView>
       </View>
       <Pressable
-        onPress={conSesion ? salir : () => router.push("/acceso")}
+        onPress={
+          conSesion
+            ? () => router.push("/perfil")
+            : () => router.push("/acceso")
+        }
         style={styles.botonSesion}
       >
         <Text style={styles.botonSesionTexto}>
