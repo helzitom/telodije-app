@@ -74,7 +74,6 @@ export default function Mapa() {
   const [conSesion, setConSesion] = useState(false);
   const [demanda, setDemanda] = useState<string | null>(null);
 
-  // Ordena sin volver a consultar la API.
   const ordenados = hospedajes
     ? [...hospedajes].sort((a, b) =>
         orden === "precio"
@@ -83,7 +82,6 @@ export default function Mapa() {
       )
     : null;
 
-  // Revisa la sesión cada vez que el mapa vuelve a estar en pantalla.
   useFocusEffect(
     useCallback(() => {
       obtenerToken().then((t) => setConSesion(!!t));
@@ -161,73 +159,84 @@ export default function Mapa() {
         })}
       </MapView>
 
-      <View style={styles.filtros}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {FRANJAS.map((f) => {
-            const activo = franja === f.id;
-            return (
-              <Pressable
-                key={f.id}
-                onPress={() => setFranja(f.id)}
-                style={[styles.chip, activo && styles.chipActivo]}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={[styles.chipTexto, activo && styles.chipTextoActivo]}
+      {/* Cabecera: filtros a la izquierda, sesión a la derecha */}
+      <View style={styles.cabecera}>
+        <View style={styles.filtrosBloque}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContenido}
+          >
+            {FRANJAS.map((f) => {
+              const activo = franja === f.id;
+              return (
+                <Pressable
+                  key={f.id}
+                  onPress={() => setFranja(f.id)}
+                  style={[styles.chip, activo && styles.chipActivo]}
                 >
-                  {f.etiqueta}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.chipTexto, activo && styles.chipTextoActivo]}
+                  >
+                    {f.etiqueta}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-        <View style={styles.ordenFila}>
-          {ORDENES.map((o) => {
-            const activo = orden === o.id;
-            return (
-              <Pressable
-                key={o.id}
-                onPress={() => setOrden(o.id)}
-                style={[styles.orden, activo && styles.ordenActivo]}
-              >
-                <Text
-                  style={[styles.ordenTexto, activo && styles.ordenTextoActivo]}
+          <View style={styles.ordenFila}>
+            {ORDENES.map((o) => {
+              const activo = orden === o.id;
+              return (
+                <Pressable
+                  key={o.id}
+                  onPress={() => setOrden(o.id)}
+                  style={[styles.orden, activo && styles.ordenActivo]}
                 >
-                  {o.etiqueta}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.ordenTexto,
+                      activo && styles.ordenTextoActivo,
+                    ]}
+                  >
+                    {o.etiqueta}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        {demanda === "ALTA" && (
-          <View style={styles.avisoDemanda}>
-            <Text style={styles.avisoDemandaTexto}>
-              Alta demanda en este horario. Es posible que algunos lugares estén
-              ocupados.
+        <View style={styles.sesionBloque}>
+          <Pressable
+            onPress={
+              conSesion
+                ? () => router.push("/perfil")
+                : () => router.push("/acceso")
+            }
+            style={styles.botonSesion}
+          >
+            <Text style={styles.botonSesionTexto}>
+              {conSesion ? "Cuenta" : "Entrar"}
             </Text>
-          </View>
-        )}
+          </Pressable>
+          {conSesion && (
+            <Pressable onPress={salir} style={styles.botonSalir}>
+              <Text style={styles.botonSalirTexto}>Salir</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      <Pressable
-        onPress={
-          conSesion
-            ? () => router.push("/perfil")
-            : () => router.push("/acceso")
-        }
-        style={styles.botonSesion}
-      >
-        <Text style={styles.botonSesionTexto}>
-          {conSesion ? "Cuenta" : "Entrar"}
-        </Text>
-      </Pressable>
-
-      {conSesion && (
-        <Pressable onPress={salir} style={styles.botonSalir}>
-          <Text style={styles.botonSalirTexto}>Salir</Text>
-        </Pressable>
+      {demanda === "ALTA" && (
+        <View style={styles.avisoDemanda}>
+          <Text style={styles.avisoDemandaTexto}>
+            Alta demanda en este horario. Es posible que algunos lugares estén
+            ocupados.
+          </Text>
+        </View>
       )}
 
       {!hospedajes && !error && (
@@ -244,7 +253,7 @@ export default function Mapa() {
         </View>
       )}
 
-      {seleccionado && (
+      {seleccionado ? (
         <View style={styles.tarjeta}>
           <View style={styles.tarjetaCabecera}>
             <Text style={styles.tarjetaNombre} numberOfLines={1}>
@@ -272,6 +281,14 @@ export default function Mapa() {
             )}
           </View>
 
+          {!seleccionado.tienePrecios && (
+            <View style={styles.sinPrecios}>
+              <Text style={styles.sinPreciosTexto}>
+                Sin precios aún. Visítalo y sé el primero en reportarlos.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.acciones}>
             <Pressable
               style={[styles.boton, styles.botonPrimario]}
@@ -289,6 +306,12 @@ export default function Mapa() {
             </Pressable>
           </View>
         </View>
+      ) : (
+        <View style={styles.atribucion}>
+          <Text style={styles.atribucionTexto}>
+            © OpenStreetMap contributors
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -297,20 +320,23 @@ export default function Mapa() {
 const styles = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: colores.fondo },
 
-  filtros: {
+  cabecera: {
     position: "absolute",
     top: 60,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
   },
+  filtrosBloque: { flex: 1 },
+  chipsContenido: { gap: 8, paddingRight: 8 },
   chip: {
     backgroundColor: colores.superficie,
     borderRadius: radios.pildora,
-    minWidth: 64,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    marginRight: 8,
+    minWidth: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     alignItems: "center",
     borderWidth: 1,
     borderColor: colores.borde,
@@ -341,27 +367,12 @@ const styles = StyleSheet.create({
   },
   ordenTextoActivo: { color: colores.textoSobreAcento },
 
-  avisoDemanda: {
-    backgroundColor: colores.acentoSuave,
-    borderRadius: radios.boton,
-    padding: 10,
-    marginTop: 10,
-  },
-  avisoDemandaTexto: {
-    fontFamily: tipografia.cuerpoMedio,
-    fontSize: 12,
-    color: colores.acento,
-  },
-
+  sesionBloque: { alignItems: "flex-end", gap: 8 },
   botonSesion: {
-    position: "absolute",
-    top: 60,
-    right: 16,
-    marginTop: 110,
     backgroundColor: colores.superficie,
     borderRadius: radios.pildora,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderWidth: 1,
     borderColor: colores.borde,
     ...sombra,
@@ -371,16 +382,26 @@ const styles = StyleSheet.create({
     color: colores.marca,
     fontSize: 13,
   },
-  botonSalir: {
-    position: "absolute",
-    top: 60,
-    right: 16,
-    marginTop: 150,
-  },
+  botonSalir: { paddingHorizontal: 6, paddingVertical: 2 },
   botonSalirTexto: {
     fontFamily: tipografia.cuerpo,
     color: colores.textoSuave,
     fontSize: 12,
+  },
+
+  avisoDemanda: {
+    position: "absolute",
+    top: 170,
+    left: 16,
+    right: 16,
+    backgroundColor: colores.acentoSuave,
+    borderRadius: radios.boton,
+    padding: 10,
+  },
+  avisoDemandaTexto: {
+    fontFamily: tipografia.cuerpoMedio,
+    fontSize: 12,
+    color: colores.acento,
   },
 
   marcadorContenedor: { alignItems: "center" },
@@ -473,6 +494,17 @@ const styles = StyleSheet.create({
     fontFamily: tipografia.cuerpoMedio,
     overflow: "hidden",
   },
+  sinPrecios: {
+    backgroundColor: colores.acentoSuave,
+    borderRadius: radios.boton,
+    padding: 10,
+    marginTop: 12,
+  },
+  sinPreciosTexto: {
+    fontFamily: tipografia.cuerpoMedio,
+    fontSize: 12,
+    color: colores.acento,
+  },
 
   acciones: { flexDirection: "row", gap: 10, marginTop: 16 },
   boton: {
@@ -496,5 +528,20 @@ const styles = StyleSheet.create({
     color: colores.marca,
     fontSize: 14,
     fontFamily: tipografia.enfasis,
+  },
+
+  atribucion: {
+    position: "absolute",
+    bottom: 4,
+    right: 8,
+    backgroundColor: "rgba(255,253,249,0.85)",
+    borderRadius: radios.pildora,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  atribucionTexto: {
+    fontFamily: tipografia.cuerpo,
+    fontSize: 10,
+    color: colores.textoSuave,
   },
 });

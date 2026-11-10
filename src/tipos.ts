@@ -9,6 +9,7 @@ export type Hospedaje = {
   precioDesde: number;
   latitud: number;
   longitud: number;
+  tienePrecios: boolean;
 };
 
 export type Tarifa = {
