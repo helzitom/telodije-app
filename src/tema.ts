@@ -10,6 +10,7 @@ export const colores = {
   textoSuave: "#6A7A7D",
   textoSobreAcento: "#FFFFFF",
   borde: "#E4DCCD",
+  acentoSuave: "#FFE4E0",
 };
 
 export const radios = {

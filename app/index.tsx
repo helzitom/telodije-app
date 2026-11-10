@@ -83,7 +83,6 @@ export default function Mapa() {
           latitudeDelta: 0.03,
           longitudeDelta: 0.03,
         }}
-        onPress={() => setSeleccionado(null)}
       >
         {hospedajes?.map((h) => {
           const activo = seleccionado?.id === h.id;
@@ -91,25 +90,31 @@ export default function Mapa() {
             <Marker
               key={h.id}
               coordinate={{ latitude: h.latitud, longitude: h.longitud }}
-              onPress={() => setSeleccionado(h)}
               anchor={{ x: 0.5, y: 1 }}
+              tracksViewChanges={activo}
+              onPress={() => setSeleccionado(h)}
             >
-              <View style={styles.marcadorContenedor}>
-                {activo && <FlechaAnimada />}
-                <View
-                  style={[styles.marcador, activo && styles.marcadorActivo]}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.marcadorTexto,
-                      activo && styles.marcadorTextoActivo,
-                    ]}
+              <Pressable
+                onPress={() => setSeleccionado(h)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <View style={styles.marcadorContenedor}>
+                  {activo && <FlechaAnimada />}
+                  <View
+                    style={[styles.marcador, activo && styles.marcadorActivo]}
                   >
-                    S/ {h.precioDesde.toFixed(0)}
-                  </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.marcadorTexto,
+                        activo && styles.marcadorTextoActivo,
+                      ]}
+                    >
+                      S/ {h.precioDesde.toFixed(0)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              </Pressable>
             </Marker>
           );
         })}
@@ -157,6 +162,17 @@ export default function Mapa() {
             <Text style={styles.tarjetaNombre} numberOfLines={1}>
               {seleccionado.nombre}
             </Text>
+            <Pressable onPress={() => setSeleccionado(null)} hitSlop={10}>
+              <Text
+                style={{
+                  color: colores.textoSuave,
+                  fontSize: 18,
+                  marginLeft: 12,
+                }}
+              >
+                ✕
+              </Text>
+            </Pressable>
             <Text style={styles.tarjetaPrecio}>
               S/ {seleccionado.precioDesde.toFixed(2)}
             </Text>
