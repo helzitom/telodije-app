@@ -105,3 +105,18 @@ export function enviarJson<T>(
 export function obtenerJsonAutenticado<T>(ruta: string): Promise<T> {
   return peticion<T>("GET", ruta, undefined, true);
 }
+
+export async function enviarPut(ruta: string, cuerpo: unknown): Promise<void> {
+  const token = await obtenerToken();
+  const respuesta = await fetch(`${API_BASE}${ruta}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(cuerpo),
+  });
+  if (!respuesta.ok) {
+    throw new ErrorApi(respuesta.status, `Error ${respuesta.status}`);
+  }
+}

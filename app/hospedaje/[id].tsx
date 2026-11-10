@@ -6,11 +6,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { obtenerJson } from "../../src/api/cliente";
+import {
+  enviarPut,
+  obtenerJson,
+  obtenerJsonAutenticado,
+} from "../../src/api/cliente";
+import { obtenerToken } from "../../src/sesion";
 import type {
   DetalleHospedaje,
   ResenaPublica,
@@ -51,7 +57,34 @@ function Servicio({ servicio }: { servicio: ServicioEstado }) {
   );
 }
 
-function Resena({ resena }: { resena: ResenaPublica }) {
+function Resena({
+  resena,
+  esDueno,
+  alResponder,
+}: {
+  resena: ResenaPublica;
+  esDueno: boolean;
+  alResponder: (resenaId: string, texto: string) => Promise<void>;
+}) {
+  const [respuesta, setRespuesta] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function responder() {
+    const texto = respuesta.trim();
+    if (!texto) return;
+    setEnviando(true);
+    setError(null);
+    try {
+      await alResponder(resena.id, texto);
+      setRespuesta("");
+    } catch {
+      setError("No pudimos guardar tu respuesta. Intenta de nuevo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   return (
     <View style={styles.resena}>
       <View style={styles.resenaCabecera}>
@@ -77,11 +110,42 @@ function Resena({ resena }: { resena: ResenaPublica }) {
         <Text style={styles.resenaComentario}>{resena.comentario}</Text>
       )}
 
-      {resena.respuestaDueno && (
+      {resena.respuestaDueno ? (
         <View style={styles.respuesta}>
           <Text style={styles.respuestaEtiqueta}>Respuesta del hospedaje</Text>
           <Text style={styles.respuestaTexto}>{resena.respuestaDueno}</Text>
         </View>
+      ) : (
+        esDueno && (
+          <View style={styles.formularioRespuesta}>
+            <TextInput
+              style={styles.campoRespuesta}
+              placeholder="Responde como hospedaje (máx. 1000 caracteres)"
+              placeholderTextColor={colores.textoSuave}
+              multiline
+              maxLength={1000}
+              value={respuesta}
+              onChangeText={setRespuesta}
+            />
+            {error && <Text style={styles.errorRespuesta}>{error}</Text>}
+            <Pressable
+              onPress={responder}
+              disabled={enviando || !respuesta.trim()}
+              style={[
+                styles.botonResponder,
+                (enviando || !respuesta.trim()) && styles.botonDeshabilitado,
+              ]}
+            >
+              {enviando ? (
+                <ActivityIndicator color={colores.textoSobreAcento} />
+              ) : (
+                <Text style={styles.botonResponderTexto}>
+                  Publicar respuesta
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        )
       )}
     </View>
   );
@@ -93,6 +157,7 @@ export default function DetalleHospedajeScreen() {
   const [resenas, setResenas] = useState<ResenaPublica[] | null>(null);
   const [errorDetalle, setErrorDetalle] = useState(false);
   const [franjaElegida, setFranjaElegida] = useState<string | null>(null);
+  const [esDueno, setEsDueno] = useState(false);
   const escala = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -122,7 +187,36 @@ export default function DetalleHospedajeScreen() {
     };
   }, [id]);
 
-  // Una tarifa por franja: si hay varias, se muestra la más barata.
+  // Solo se consulta si hay sesión. Sin sesión, nadie es dueño.
+  useEffect(() => {
+    let cancelado = false;
+    obtenerToken().then((token) => {
+      if (!token) return;
+      obtenerJsonAutenticado<{ dueno: boolean }>(
+        `/api/v1/alojamientos/${id}/soy-dueno`,
+      )
+        .then((r) => {
+          if (!cancelado) setEsDueno(r.dueno);
+        })
+        .catch(() => {
+          if (!cancelado) setEsDueno(false);
+        });
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [id]);
+
+  async function responderResena(resenaId: string, texto: string) {
+    await enviarPut(`/api/v1/resenas/${resenaId}/respuesta`, { texto });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Recarga las reseñas para mostrar la respuesta publicada.
+    const actualizadas = await obtenerJson<ResenaPublica[]>(
+      `/api/v1/alojamientos/${id}/resenas`,
+    );
+    setResenas(actualizadas);
+  }
+
   const tarifas = useMemo(() => {
     const porFranja = new Map<string, Tarifa>();
     for (const t of detalle?.tarifas ?? []) {
@@ -185,7 +279,11 @@ export default function DetalleHospedajeScreen() {
           <Text style={styles.tipo}>{etiquetaTipo(detalle.tipo)}</Text>
           <Text style={styles.nombre}>{detalle.nombre}</Text>
           <Text style={styles.direccion}>{detalle.direccion}</Text>
-
+          {detalle.verificado && (
+            <View style={styles.sello}>
+              <Text style={styles.selloTexto}>✓ Verificado por el dueño</Text>
+            </View>
+          )}
           <View style={styles.chips}>
             {detalle.tieneCochera && <Text style={styles.chip}>Cochera</Text>}
             {promedio !== null && (
@@ -299,7 +397,14 @@ export default function DetalleHospedajeScreen() {
                   experiencia.
                 </Text>
               ) : (
-                resenas.map((r) => <Resena key={r.id} resena={r} />)
+                resenas.map((r) => (
+                  <Resena
+                    key={r.id}
+                    resena={r}
+                    esDueno={esDueno}
+                    alResponder={responderResena}
+                  />
+                ))
               )}
             </>
           )}
@@ -367,6 +472,19 @@ const styles = StyleSheet.create({
     color: colores.textoSuave,
     marginTop: 6,
     fontSize: 14,
+  },
+  sello: {
+    alignSelf: "flex-start",
+    backgroundColor: colores.marcaSuave,
+    borderRadius: radios.pildora,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 10,
+  },
+  selloTexto: {
+    fontFamily: tipografia.enfasis,
+    fontSize: 12,
+    color: colores.marca,
   },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
   chip: {
@@ -552,6 +670,36 @@ const styles = StyleSheet.create({
     color: colores.texto,
     marginTop: 4,
     lineHeight: 20,
+  },
+
+  formularioRespuesta: { marginTop: 12, gap: 8 },
+  campoRespuesta: {
+    fontFamily: tipografia.cuerpo,
+    fontSize: 14,
+    color: colores.texto,
+    backgroundColor: colores.fondo,
+    borderRadius: radios.boton,
+    borderWidth: 1,
+    borderColor: colores.borde,
+    padding: 12,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  errorRespuesta: {
+    fontFamily: tipografia.cuerpoMedio,
+    color: colores.acento,
+    fontSize: 12,
+  },
+  botonResponder: {
+    backgroundColor: colores.marca,
+    borderRadius: radios.boton,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  botonDeshabilitado: { opacity: 0.5 },
+  botonResponderTexto: {
+    fontFamily: tipografia.enfasis,
+    color: colores.textoSobreAcento,
   },
 
   botonTemporal: {

@@ -35,6 +35,7 @@ export type DetalleHospedaje = {
   totalResenas: number;
   tarifas: Tarifa[];
   servicios: ServicioEstado[];
+  verificado: boolean;
 };
 
 export type ResenaPublica = {
