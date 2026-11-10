@@ -31,6 +31,12 @@
         {
           "cameraPermission": "TeloDije necesita la cámara para registrar tu foto de llegada."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TeloDije usa tu ubicación para mostrar los hospedajes cerca de ti."
+        }
       ]
     ]
   }

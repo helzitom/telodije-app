@@ -16,6 +16,11 @@ import type { Hospedaje } from "../src/tipos";
 import { colores, radios, sombra, tipografia } from "../src/tema";
 import { cerrarSesion, obtenerToken } from "../src/sesion";
 import { geohash } from "../src/geohash";
+import {
+  obtenerUbicacion,
+  CENTRO_POR_DEFECTO,
+  type Coordenadas,
+} from "../src/ubicacion";
 
 const FRANJAS = [
   { id: "H4", etiqueta: "4 h" },
@@ -31,6 +36,15 @@ const ORDENES = [
 ] as const;
 
 type Orden = (typeof ORDENES)[number]["id"];
+
+// Formatea un precio o devuelve el texto alternativo si no hay precio.
+function precioCorto(precio: number | null): string {
+  return precio !== null ? `S/ ${precio.toFixed(0)}` : "Sin precio";
+}
+
+function precioLargo(precio: number | null): string {
+  return precio !== null ? `S/ ${precio.toFixed(2)}` : "Sin precio";
+}
 
 function FlechaAnimada() {
   const desplazamiento = useRef(new Animated.Value(0)).current;
@@ -74,12 +88,35 @@ export default function Mapa() {
   const [conSesion, setConSesion] = useState(false);
   const [demanda, setDemanda] = useState<string | null>(null);
 
+  const [centro, setCentro] = useState<Coordenadas>(CENTRO_POR_DEFECTO);
+  const [ubicacionReal, setUbicacionReal] = useState(false);
+  const mapaRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    obtenerUbicacion().then(({ coordenadas, esReal }) => {
+      setCentro(coordenadas);
+      setUbicacionReal(esReal);
+      mapaRef.current?.animateToRegion(
+        {
+          latitude: coordenadas.lat,
+          longitude: coordenadas.lng,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        },
+        600,
+      );
+    });
+  }, []);
+
+  // Los lugares sin precio van siempre al final, en el orden por precio.
   const ordenados = hospedajes
-    ? [...hospedajes].sort((a, b) =>
-        orden === "precio"
-          ? a.precioDesde - b.precioDesde
-          : a.distanciaMetros - b.distanciaMetros,
-      )
+    ? [...hospedajes].sort((a, b) => {
+        if (orden === "distancia") return a.distanciaMetros - b.distanciaMetros;
+        if (a.precioDesde === null && b.precioDesde === null) return 0;
+        if (a.precioDesde === null) return 1;
+        if (b.precioDesde === null) return -1;
+        return a.precioDesde - b.precioDesde;
+      })
     : null;
 
   useFocusEffect(
@@ -93,19 +130,19 @@ export default function Mapa() {
     setSeleccionado(null);
     setError(null);
     obtenerJson<Hospedaje[]>(
-      `/api/v1/alojamientos/cercanos?lat=-12.0910&lng=-77.0320&radioMetros=2000&limite=50&franja=${franja}`,
+      `/api/v1/alojamientos/cercanos?lat=${centro.lat}&lng=${centro.lng}&radioMetros=2000&limite=50&franja=${franja}`,
     )
       .then(setHospedajes)
       .catch((e: Error) => setError(e.message));
-  }, [franja]);
+  }, [franja, centro]);
 
   useEffect(() => {
     obtenerJson<{ nivel: string }>(
-      `/api/v1/concurrencia?geohash=${geohash(-12.091, -77.032)}`,
+      `/api/v1/concurrencia?geohash=${geohash(centro.lat, centro.lng)}`,
     )
       .then((r) => setDemanda(r.nivel))
       .catch(() => setDemanda(null));
-  }, [franja]);
+  }, [centro]);
 
   async function salir() {
     await cerrarSesion();
@@ -115,10 +152,13 @@ export default function Mapa() {
   return (
     <View style={styles.contenedor}>
       <MapView
+        ref={mapaRef}
         style={StyleSheet.absoluteFill}
+        showsUserLocation={ubicacionReal}
+        showsMyLocationButton
         initialRegion={{
-          latitude: -12.091,
-          longitude: -77.032,
+          latitude: CENTRO_POR_DEFECTO.lat,
+          longitude: CENTRO_POR_DEFECTO.lng,
           latitudeDelta: 0.03,
           longitudeDelta: 0.03,
         }}
@@ -149,7 +189,7 @@ export default function Mapa() {
                         activo && styles.marcadorTextoActivo,
                       ]}
                     >
-                      S/ {h.precioDesde.toFixed(0)}
+                      {precioCorto(h.precioDesde)}
                     </Text>
                   </View>
                 </View>
@@ -159,7 +199,6 @@ export default function Mapa() {
         })}
       </MapView>
 
-      {/* Cabecera: filtros a la izquierda, sesión a la derecha */}
       <View style={styles.cabecera}>
         <View style={styles.filtrosBloque}>
           <ScrollView
@@ -260,7 +299,7 @@ export default function Mapa() {
               {seleccionado.nombre}
             </Text>
             <Text style={styles.tarjetaPrecio}>
-              S/ {seleccionado.precioDesde.toFixed(2)}
+              {precioLargo(seleccionado.precioDesde)}
             </Text>
             <Pressable onPress={() => setSeleccionado(null)} hitSlop={10}>
               <Text style={styles.cerrarTarjeta}>✕</Text>

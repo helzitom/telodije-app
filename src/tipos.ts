@@ -6,7 +6,7 @@ export type Hospedaje = {
   calificacionPromedio: number | null;
   totalResenas: number;
   distanciaMetros: number;
-  precioDesde: number;
+  precioDesde: number | null;
   latitud: number;
   longitud: number;
   tienePrecios: boolean;
