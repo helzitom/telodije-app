@@ -25,7 +25,13 @@
       "expo-router",
       "expo-status-bar",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TeloDije necesita la cámara para registrar tu foto de llegada."
+        }
+      ]
     ]
   }
 }

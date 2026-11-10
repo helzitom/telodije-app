@@ -311,6 +311,20 @@ export default function DetalleHospedajeScreen() {
         >
           <Text style={styles.botonTemporalTexto}>Dejar reseña</Text>
         </Pressable>
+        <Pressable
+          onPress={() => {
+            const precios = Object.fromEntries(
+              tarifas.map((t) => [t.franja, t.precioPen]),
+            );
+            router.push({
+              pathname: "/visitar/[id]",
+              params: { id, precios: JSON.stringify(precios) },
+            });
+          }}
+          style={styles.botonTemporal}
+        >
+          <Text style={styles.botonTemporalTexto}>Registrar mi visita</Text>
+        </Pressable>
       </ScrollView>
     </>
   );

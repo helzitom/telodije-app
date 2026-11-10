@@ -64,6 +64,10 @@ export default function Layout() {
         name="resenar/[id]"
         options={{ title: "Dejar reseña", presentation: "modal" }}
       />
+      <Stack.Screen
+        name="visitar/[id]"
+        options={{ title: "Registrar visita", presentation: "modal" }}
+      />
     </Stack>
   );
 }

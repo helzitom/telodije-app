@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { obtenerJson } from "../src/api/cliente";
 import type { Hospedaje } from "../src/tipos";
 import { colores, radios, sombra, tipografia } from "../src/tema";
+import { cerrarSesion, obtenerToken } from "../src/sesion";
 
 const FRANJAS = [
   { id: "H4", etiqueta: "4 h" },
@@ -61,6 +62,17 @@ export default function Mapa() {
   const [hospedajes, setHospedajes] = useState<Hospedaje[] | null>(null);
   const [seleccionado, setSeleccionado] = useState<Hospedaje | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [conSesion, setConSesion] = useState(false);
+
+  useEffect(() => {
+    obtenerToken().then((t) => setConSesion(!!t));
+  }, []);
+
+  async function salir() {
+    await cerrarSesion();
+    setConSesion(false);
+  }
 
   useEffect(() => {
     setHospedajes(null);
@@ -141,6 +153,14 @@ export default function Mapa() {
           })}
         </ScrollView>
       </View>
+      <Pressable
+        onPress={conSesion ? salir : () => router.push("/acceso")}
+        style={styles.botonSesion}
+      >
+        <Text style={styles.botonSesionTexto}>
+          {conSesion ? "Salir" : "Entrar"}
+        </Text>
+      </Pressable>
 
       {!hospedajes && !error && (
         <View style={styles.cargando}>
@@ -355,5 +375,22 @@ const styles = StyleSheet.create({
     color: colores.marca,
     fontSize: 14,
     fontFamily: tipografia.enfasis,
+  },
+  botonSesion: {
+    position: "absolute",
+    top: 110,
+    right: 16,
+    backgroundColor: colores.superficie,
+    borderRadius: radios.pildora,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colores.borde,
+    ...sombra,
+  },
+  botonSesionTexto: {
+    fontFamily: tipografia.enfasis,
+    color: colores.marca,
+    fontSize: 13,
   },
 });

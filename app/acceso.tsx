@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { enviarJson, ErrorApi } from "../src/api/cliente";
-import { guardarToken } from "../src/sesion";
+import { guardarSesion } from "../src/sesion";
 import type { RespuestaLogin } from "../src/tipos";
 import { colores, radios, sombra, tipografia } from "../src/tema";
 
@@ -25,23 +25,43 @@ export default function Acceso() {
 
   async function enviar() {
     setMensaje(null);
+    const aliasLimpio = alias.trim();
+    const correoLimpio = email.trim();
+
+    if (registrando && (!aliasLimpio || !correoLimpio)) {
+      setMensaje("Escribe tu alias y tu correo.");
+      return;
+    }
+    if (!aliasLimpio && !correoLimpio) {
+      setMensaje("Escribe tu alias o correo.");
+      return;
+    }
+    if (password.length < 10) {
+      setMensaje("La contraseña debe tener al menos 10 caracteres.");
+      return;
+    }
+
     setCargando(true);
     try {
-      if (modo === "registrarse") {
-        await enviarJson("/api/v1/auth/registro", { alias, email, password });
+      if (registrando) {
+        await enviarJson("/api/v1/auth/registro", {
+          alias: aliasLimpio,
+          email: correoLimpio,
+          password,
+        });
       }
       const sesion = await enviarJson<RespuestaLogin>("/api/v1/auth/login", {
-        identificador: modo === "registrarse" ? alias : alias || email,
+        identificador: registrando ? aliasLimpio : aliasLimpio || correoLimpio,
         password,
       });
-      await guardarToken(sesion.accessToken);
+      await guardarSesion(sesion.accessToken, sesion.refreshToken);
       router.back();
     } catch (e) {
-      const texto =
+      setMensaje(
         e instanceof ErrorApi
           ? e.message
-          : "Revisa tu conexión e intenta de nuevo.";
-      setMensaje(texto);
+          : "Revisa tu conexión e intenta de nuevo.",
+      );
     } finally {
       setCargando(false);
     }
@@ -187,5 +207,12 @@ const styles = StyleSheet.create({
     color: colores.marca,
     textAlign: "center",
     marginTop: 18,
+  },
+  precioNota: {
+    fontFamily: tipografia.cuerpo,
+    color: colores.textoSuave,
+    fontSize: 12,
+    marginTop: 6,
+    textAlign: "center",
   },
 });
