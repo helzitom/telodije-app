@@ -44,3 +44,30 @@ export type ResenaPublica = {
   fechaResena: string;
   respuestaDueno: string | null;
 };
+
+export type RespuestaLogin = {
+  accessToken: string;
+  refreshToken: string;
+  tipo: string;
+  expiraEnSegundos: number;
+};
+
+export type ServicioResena = {
+  servicioId: number;
+  estado: "PRESENTE" | "AUSENTE" | "DESCONOCIDO";
+};
+
+export type VisitaMia = {
+  id: string;
+  alojamientoId: string;
+  franja: string;
+  horas: number;
+  montoPagadoPen: number;
+  llegadaEn: string;
+};
+
+export type ServicioCatalogo = {
+  id: number;
+  codigo: string;
+  nombre: string;
+};

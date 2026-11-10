@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { obtenerJson } from "../../src/api/cliente";
 import type {
@@ -304,6 +304,13 @@ export default function DetalleHospedajeScreen() {
             </>
           )}
         </View>
+
+        <Pressable
+          onPress={() => router.push(`/resenar/${id}`)}
+          style={styles.botonTemporal}
+        >
+          <Text style={styles.botonTemporalTexto}>Dejar reseña</Text>
+        </Pressable>
       </ScrollView>
     </>
   );
@@ -531,5 +538,17 @@ const styles = StyleSheet.create({
     color: colores.texto,
     marginTop: 4,
     lineHeight: 20,
+  },
+
+  botonTemporal: {
+    backgroundColor: colores.marca,
+    borderRadius: radios.boton,
+    padding: 14,
+    marginTop: 16,
+    alignItems: "center",
+  },
+  botonTemporalTexto: {
+    color: colores.textoSobreAcento,
+    fontFamily: tipografia.enfasis,
   },
 });

@@ -56,6 +56,14 @@ export default function Layout() {
         name="hospedaje/[id]"
         options={{ title: "Hospedaje", headerBackTitle: "Mapa" }}
       />
+      <Stack.Screen
+        name="acceso"
+        options={{ title: "Tu cuenta", presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="resenar/[id]"
+        options={{ title: "Dejar reseña", presentation: "modal" }}
+      />
     </Stack>
   );
 }
