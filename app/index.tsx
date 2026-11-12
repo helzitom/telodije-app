@@ -21,6 +21,7 @@ import {
   CENTRO_POR_DEFECTO,
   type Coordenadas,
 } from "../src/ubicacion";
+import { estiloMapa } from "../src/mapaEstilo";
 
 const FRANJAS = [
   { id: "H4", etiqueta: "4 h" },
@@ -37,7 +38,6 @@ const ORDENES = [
 
 type Orden = (typeof ORDENES)[number]["id"];
 
-// Formatea un precio o devuelve el texto alternativo si no hay precio.
 function precioCorto(precio: number | null): string {
   return precio !== null ? `S/ ${precio.toFixed(0)}` : "Sin precio";
 }
@@ -46,14 +46,14 @@ function precioLargo(precio: number | null): string {
   return precio !== null ? `S/ ${precio.toFixed(2)}` : "Sin precio";
 }
 
-function FlechaAnimada() {
+function FlechaAnimada({ color }: { color: string }) {
   const desplazamiento = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const bucle = Animated.loop(
       Animated.sequence([
         Animated.timing(desplazamiento, {
-          toValue: -6,
+          toValue: -5,
           duration: 500,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
@@ -74,7 +74,7 @@ function FlechaAnimada() {
     <Animated.View
       style={[styles.flecha, { transform: [{ translateY: desplazamiento }] }]}
     >
-      <View style={styles.flechaTriangulo} />
+      <View style={[styles.flechaTriangulo, { borderTopColor: color }]} />
     </Animated.View>
   );
 }
@@ -90,25 +90,22 @@ export default function Mapa() {
 
   const [centro, setCentro] = useState<Coordenadas>(CENTRO_POR_DEFECTO);
   const [ubicacionReal, setUbicacionReal] = useState(false);
-  const mapaRef = useRef<MapView>(null);
+  const [listo, setListo] = useState(false);
 
+  // Espera la ubicación antes de mostrar el mapa, para no mostrar San Isidro por un instante.
   useEffect(() => {
+    let activo = true;
     obtenerUbicacion().then(({ coordenadas, esReal }) => {
+      if (!activo) return;
       setCentro(coordenadas);
       setUbicacionReal(esReal);
-      mapaRef.current?.animateToRegion(
-        {
-          latitude: coordenadas.lat,
-          longitude: coordenadas.lng,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        },
-        600,
-      );
+      setListo(true);
     });
+    return () => {
+      activo = false;
+    };
   }, []);
 
-  // Los lugares sin precio van siempre al final, en el orden por precio.
   const ordenados = hospedajes
     ? [...hospedajes].sort((a, b) => {
         if (orden === "distancia") return a.distanciaMetros - b.distanciaMetros;
@@ -126,6 +123,7 @@ export default function Mapa() {
   );
 
   useEffect(() => {
+    if (!listo) return;
     setHospedajes(null);
     setSeleccionado(null);
     setError(null);
@@ -134,31 +132,43 @@ export default function Mapa() {
     )
       .then(setHospedajes)
       .catch((e: Error) => setError(e.message));
-  }, [franja, centro]);
+  }, [franja, centro, listo]);
 
   useEffect(() => {
+    if (!listo) return;
     obtenerJson<{ nivel: string }>(
       `/api/v1/concurrencia?geohash=${geohash(centro.lat, centro.lng)}`,
     )
       .then((r) => setDemanda(r.nivel))
       .catch(() => setDemanda(null));
-  }, [centro]);
+  }, [centro, listo]);
 
   async function salir() {
     await cerrarSesion();
     setConSesion(false);
   }
 
+  if (!listo) {
+    return (
+      <View style={styles.centroCarga}>
+        <ActivityIndicator color={colores.marca} size="large" />
+        <Text style={styles.textoCarga}>Buscando tu ubicación…</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.contenedor}>
       <MapView
-        ref={mapaRef}
         style={StyleSheet.absoluteFill}
+        customMapStyle={estiloMapa}
         showsUserLocation={ubicacionReal}
         showsMyLocationButton
+        showsPointsOfInterests={false}
+        showsBuildings={false}
         initialRegion={{
-          latitude: CENTRO_POR_DEFECTO.lat,
-          longitude: CENTRO_POR_DEFECTO.lng,
+          latitude: centro.lat,
+          longitude: centro.lng,
           latitudeDelta: 0.03,
           longitudeDelta: 0.03,
         }}
@@ -167,33 +177,32 @@ export default function Mapa() {
           const activo = seleccionado?.id === h.id;
           return (
             <Marker
-              key={h.id}
+              key={`${h.id}-${activo ? "on" : "off"}`}
               coordinate={{ latitude: h.latitud, longitude: h.longitud }}
               anchor={{ x: 0.5, y: 1 }}
               tracksViewChanges={activo}
               onPress={() => setSeleccionado(h)}
             >
-              <Pressable
-                onPress={() => setSeleccionado(h)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <View style={styles.marcadorContenedor}>
-                  {activo && <FlechaAnimada />}
-                  <View
-                    style={[styles.marcador, activo && styles.marcadorActivo]}
+              <View style={styles.marcadorContenedor}>
+                <View
+                  style={[styles.marcador, activo && styles.marcadorActivo]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.marcadorTexto,
+                      activo && styles.marcadorTextoActivo,
+                    ]}
                   >
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.marcadorTexto,
-                        activo && styles.marcadorTextoActivo,
-                      ]}
-                    >
-                      {precioCorto(h.precioDesde)}
-                    </Text>
-                  </View>
+                    {precioCorto(h.precioDesde)}
+                  </Text>
                 </View>
-              </Pressable>
+                {activo ? (
+                  <FlechaAnimada color={colores.marca} />
+                ) : (
+                  <View style={styles.flechaFija} />
+                )}
+              </View>
             </Marker>
           );
         })}
@@ -359,6 +368,15 @@ export default function Mapa() {
 const styles = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: colores.fondo },
 
+  centroCarga: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colores.fondo,
+    gap: 12,
+  },
+  textoCarga: { fontFamily: tipografia.cuerpoMedio, color: colores.textoSuave },
+
   cabecera: {
     position: "absolute",
     top: 60,
@@ -398,7 +416,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colores.borde,
   },
-  ordenActivo: { backgroundColor: colores.acento, borderColor: colores.acento },
+  ordenActivo: { backgroundColor: colores.marca, borderColor: colores.marca },
   ordenTexto: {
     fontFamily: tipografia.cuerpoMedio,
     fontSize: 12,
@@ -449,31 +467,48 @@ const styles = StyleSheet.create({
     borderRadius: radios.pildora,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colores.marca,
-    ...sombra,
+    shadowColor: colores.texto,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   marcadorActivo: {
-    backgroundColor: colores.acento,
-    borderColor: colores.acento,
+    backgroundColor: colores.marca,
+    borderColor: colores.marca,
   },
   marcadorTexto: {
     color: colores.marca,
     fontFamily: tipografia.negrita,
     fontSize: 13,
+    letterSpacing: 0.2,
   },
-  marcadorTextoActivo: { color: colores.textoSobreAcento },
+  marcadorTextoActivo: { color: colores.superficie },
 
-  flecha: { alignItems: "center", marginBottom: 4 },
+  flecha: { alignItems: "center", marginTop: 2 },
   flechaTriangulo: {
     width: 0,
     height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 10,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderTopWidth: 9,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: colores.acento,
+    elevation: 4,
+  },
+  flechaFija: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: colores.marca,
+    marginTop: 2,
+    elevation: 3,
   },
 
   cargando: { position: "absolute", top: 230, alignSelf: "center" },

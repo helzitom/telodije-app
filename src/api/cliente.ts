@@ -6,7 +6,8 @@ import {
 } from "../sesion";
 import type { RespuestaLogin } from "../tipos";
 
-export const API_BASE = "http://192.168.18.84:8080";
+export const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE ?? "https://telodije-api.onrender.com";
 
 export class ErrorApi extends Error {
   constructor(
