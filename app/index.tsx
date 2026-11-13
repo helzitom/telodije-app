@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { router, useFocusEffect } from "expo-router";
 import { obtenerJson } from "../src/api/cliente";
 import type { Hospedaje } from "../src/tipos";
